@@ -9,7 +9,6 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import natural from "natural";
-import { z } from "zod";
 
 const app = express()
 const port = 4404
@@ -100,33 +99,6 @@ app.post('/', async (req, res) => {
 
     //logger.debug(result.content, "result from LM Studio")
 
-    // let resultJSON = result.content.trim()
-
-    // let cleaned = extractJsonFromLlmOutput(resultJSON)
-
-    // if (!cleaned) {
-    //     console.error("Could not extract JSON from LLM output");
-    //     throw new Error("Invalid JSON from LLM");
-    // }
-
-    // if (cleaned.startsWith("```json")) {
-    //     cleaned = cleaned.substring(7)
-    // }
-
-    // if (cleaned.endsWith("```")) {
-    //     cleaned = cleaned.substring(0, cleaned.length - 3)
-    // }
-
-    // //logger.debug(cleaned, "cleaned JSON");
-
-    // let parsed;
-    // try {
-    //     parsed = JSON.parse(cleaned);
-    // } catch (err) {
-    //     console.error("Failed to parse cleaned JSON:", cleaned);
-    //     throw err;
-    // }
-
     logger.debug(parsed, "parsedJSON")
 
     let translations = parsed;
@@ -137,21 +109,6 @@ app.post('/', async (req, res) => {
 
     ctx.clearRect(0, 0, outImg.width, outImg.height)
 
-    //ctx.fillStyle = "#00000080"
-    //ctx.fillRect(0, 0, outImg.width, outImg.height)
-
-    //logger.debug(ocrRes[0].box[0][0])
-    //logger.debug(ocrRes[0].box[0][1])
-    
-    // const { x: ocrX, y: ocrY } = scalePoint(
-    //     ocrRes[0].box[0][0], 
-    //     ocrRes[0].box[0][1],
-    //     inputWidth, inputHeight,
-    //     OUTPUT_WIDTH, OUTPUT_HEIGHT
-    // );
-    // logger.debug(`OCR X: ${ocrX} Y: ${ocrY}`)
-    // let yPos = ocrY - 70;
-    // let xPos = ocrX;
     const lineHeight = 56;
     //cleanup translation list
     let count = translations.length;
@@ -200,30 +157,9 @@ app.post('/', async (req, res) => {
 
         let yPos = ocrY;
         let xPos = ocrX;
-        // fill with red
-        //ctx.font = "28pt MPlus1Code"
         ctx.font = `${lineHeight}pt ChiKareGo2`
-        ctx.fillStyle = "green";
-        ////ctx.fillText(t.location, 10, yPos);
-        //ctx.fillText(t.location, 10, yPos + (t.y * 2.75));
-
-        //yPos += lineHeight;
-        ctx.fillStyle = "cyan";
-        ctx.strokeStyle = '#000000'; // Outline color (black)
-        ctx.lineWidth = 10;
 
         const lines = t.translation.split('\n')
-
-
-        // for (const l of lines) {
-        //     const splitted = l.match(/.{1,80}/g)
-        //     for (const s of splitted) {
-
-        //         ctx.strokeText(s.trim(), xPos + 2, yPos + 2);
-        //         ctx.fillText(s.trim(), xPos, yPos);
-        //         yPos += lineHeight;
-        //     }
-        // }
 
         for (const l of lines) {
             const wrappedLines = wrapLineWordwise(l, MAX_LINE_LENGTH);
@@ -263,7 +199,6 @@ app.post('/', async (req, res) => {
     })
 })
 
-
 function wrapLineWordwise(line, maxLen = MAX_LINE_LENGTH) {
   const words = line.split(/\s+/);
   const out = [];
@@ -299,39 +234,6 @@ function wrapLineWordwise(line, maxLen = MAX_LINE_LENGTH) {
   if (current) out.push(current);
 
   return out;
-}
-
-
-function extractJsonFromLlmOutput(raw: string) {
-  if (!raw) return null;
-
-  // Normalize line endings
-  const text = raw.replace(/\r\n/g, "\n");
-
-  // Look for ```json or ```JSON or even ``` (sometimes model omits `json`)
-  const fenceRegex = /```(?:json)?\s*([\s\S]*?)```/i;
-  const match = text.match(fenceRegex);
-
-  if (match && match[1]) {
-    const candidate = match[1].trim();
-
-    // Now try to locate the JSON object inside the fenced block
-    const firstBrace = candidate.indexOf("[");
-    const lastBrace = candidate.lastIndexOf("]");
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      const jsonOnly = candidate.substring(firstBrace, lastBrace + 1);
-      return jsonOnly;
-    }
-  }
-
-  // Fallback: try raw braces in the full output
-  const fbFirst = text.indexOf("[");
-  const fbLast = text.lastIndexOf("]");
-  if (fbFirst !== -1 && fbLast !== -1 && fbLast > fbFirst) {
-    return text.substring(fbFirst, fbLast + 1);
-  }
-
-  return null;
 }
 
 function findBestMatchIterative(items, scoreFn) {
@@ -470,14 +372,6 @@ function filterSimilarItems(list, similarityScoringFunction, threshold = 0.7) {
 
   return uniqueItems;
 }
-
-export const TranslationEntrySchema = z.object({
-  location: z.string(),
-  original: z.union([z.string(), z.array(z.string())]),
-  originalLanguage: z.string(),
-  translation: z.union([z.string(), z.array(z.string())]),
-  translationLanguage: z.string(),
-});
 
 export const translationEntryJsonSchema = {
   type: "object",
