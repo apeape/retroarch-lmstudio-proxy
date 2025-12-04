@@ -25,8 +25,8 @@ const lmstudio = new LMStudioClient();
 var model: LLM
 
 const MODEL_NAME = "huihui-minicpm-v-4_5-abliterated";
-const OUTPUT_WIDTH = 1920
-const OUTPUT_HEIGHT = 1080
+const OUTPUT_WIDTH = 640*3
+const OUTPUT_HEIGHT = 400*3
 let prev_x = 40
 let prev_y = OUTPUT_HEIGHT - 100;
 
@@ -45,6 +45,7 @@ app.post('/', async (req, res) => {
     let buf = Buffer.from(input.image, "base64");
 
     // write to temp PNG
+    
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ra-ocr-"));
     const tmpPath = path.join(tmpDir, "frame.png");
     await fs.writeFile(tmpPath, buf);
@@ -65,15 +66,23 @@ app.post('/', async (req, res) => {
     const { ocrTexts } = ocrRes; // array of TextLine
     //logger.debug(ocrRes)
 
+    fs.rm(tmpDir, { recursive: true, force: true }, (err) => {
+        if (err) {
+            console.error(`Error deleting folder: ${err.message}`);
+            return;
+        }
+        console.log(`Folder "${tmpDir}" and its contents deleted successfully.`);
+    });
+
     const result = await model.respond({
-        content: `You're an expert translator. Extract the texts in the image and translate them. Infer the tone/vibe of each character you're translating and maintain it, e.g. how they use slang. Don't be afraid of using contractions, write natural dialogue. Character names may be surrounded in brackets like this: 「Name」. Dialogue may be cut off at the end or beginning, just truncate with ellipses. If you encounter more than 10 repeating characters, please truncate and ignore or summarize with ellipses. Ignore duplicate or extremely similar lines of input, these are likely OCR errors. Multiple lines of dialogue in the same location should be merged into one entry with consecutive sentences. If the input has all English words, set originalLanguage to English. Format output as JSON:
+        content: `You're an expert translator. Extract the texts in the image and translate them. Character names or the dialogue may be surrounded in brackets like this: 「Name」. Multiple lines of dialogue in the same location should be merged into one entry with consecutive sentences. Format output as JSON. Remember to escape quotes and other characters requires by JSON spec:
         json\`\`\`
         [
             {
                 "location": "message window",
                 "original": "「キヨミ」 こんにちは。",
                 "originalLanguage": "Japanese",
-                "translation": "Kiyomi: Hello.",
+                "translation": "'Kiyomi': Hello.",
                 "translationLanguage": "English"
             },
             {
@@ -92,12 +101,12 @@ app.post('/', async (req, res) => {
             type: "json",
             jsonSchema: translationListJsonSchema,
         },
-        maxTokens: 1600
+        maxTokens: 2000
     });  
 
     let parsed = JSON.parse(result.content);
 
-    //logger.debug(result.content, "result from LM Studio")
+    logger.debug(result.content, "result from LM Studio")
 
     logger.debug(parsed, "parsedJSON")
 
@@ -165,7 +174,7 @@ app.post('/', async (req, res) => {
             const wrappedLines = wrapLineWordwise(l, MAX_LINE_LENGTH);
 
             for (const s of wrappedLines) {
-                const text = s.trim();
+                const text = s.trim().replaceAll("…", ".");
                 let metrics = ctx.measureText(text);
 
                 ctx.fillStyle = "#000000de"
